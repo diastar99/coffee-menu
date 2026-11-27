@@ -401,7 +401,7 @@
 </head>
 <body :class="{ 'admin-body': mode === 'admin' }">
     <div id="app" v-cloak>
-        <!-- 디스플레이 -->
+        <!-- ================= 디스플레이 모드 ================= -->
         <div v-if="mode === 'display'" class="page" :style="{ backgroundImage: config.bgImage ? 'url(' + config.bgImage + ')' : 'none' }">
 
             <!-- 동기화 상태 -->
@@ -436,7 +436,7 @@
             </div>
         </div>
 
-        <!-- 관리자 -->
+        <!-- ================= 모던 관리자 페이지 모드 ================= -->
         <div v-if="mode === 'admin'" class="dashboard-container">
             <div class="dash-header">
                 <h2>☕ 메뉴판 관리</h2>
@@ -462,67 +462,199 @@
                 </div>
             </div>
 
-            <!-- 기존 관리 UI (생략 - 위와 동일한 구조) -->
-            <!-- ... (기존 UI 유지) ... -->
+            <!-- 메뉴 관리 UI (기존 유지) -->
+            <div class="card-section">
+                <h3>메뉴 관리</h3>
+                <!-- 카테고리 탭 및 메뉴 리스트 -->
+                <div class="category-tabs">
+                    <button v-for="(cat, idx) in config.categories" :key="idx"
+                            class="tab-btn" :class="{ active: activeTab === idx }" @click="activeTab = idx">
+                        {{ cat.name }}
+                    </button>
+                </div>
+                <div class="menu-list-container">
+                    <div v-for="(item, iIdx) in config.categories[activeTab]?.items" :key="iIdx" class="menu-edit-row">
+                        <input type="checkbox" v-model="item.enabled">
+                        <input type="text" v-model="item.name" placeholder="한글명">
+                        <input type="text" v-model="item.engName" placeholder="영문명">
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- 빠른 메뉴 편집 모달 (생략 - 위와 동일한 구조) -->
+        <!-- ================= 빠른 메뉴 편집 모달 ================= -->
+        <div v-if="showQuickModal" class="modal-overlay">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h3>빠른 메뉴 편집</h3>
+                    <button class="modal-close" @click="closeQuickModal">×</button>
+                </div>
+                <div class="modal-body">
+                    <!-- 모달 본문 (관리자 페이지 메뉴 UI 재활용) -->
+                    <div class="category-tabs">
+                        <button v-for="(cat, idx) in config.categories" :key="idx"
+                                class="tab-btn" :class="{ active: activeTab === idx }" @click="activeTab = idx">
+                            {{ cat.name }}
+                        </button>
+                    </div>
+                    <div class="menu-list-container">
+                        <div v-for="(item, iIdx) in config.categories[activeTab]?.items" :key="iIdx" class="menu-edit-row">
+                            <input type="checkbox" v-model="item.enabled">
+                            <input type="text" v-model="item.name" placeholder="한글명">
+                            <input type="text" v-model="item.engName" placeholder="영문명">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-accent" @click="closeQuickModal">확인</button>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <script src="vue.global.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script>
-        // ... (초기화 및 normalizeConfig)
+        const MIN_STICKER_SIZE = 80;
+        const MAX_STICKER_SIZE = 350;
+
+        const INITIAL_DATA = {
+            title: 'BRAVO COFFEE', bgImage: '', stickerImage: '',
+            stickerPos: { top: 4, left: 66, unit: '%' }, stickerSize: 160,
+            categories: [
+                { name: '커피', items: [{name:'아메리카노', engName:'AMERICANO', enabled:true}, {name:'카페라떼', engName:'CAFFE LATTE', enabled:true}, {name:'바닐라라떼', engName:'VANILLA LATTE', enabled:true}, {name:'헤이즐넛라떼', engName:'HAZELNUT LATTE', enabled:true}] },
+                { name: '논커피', items: [{name:'녹차우유', engName:'GREEN TEA MILK', enabled:true}, {name:'초코우유', engName:'CHOCOLATE MILK', enabled:true}, {name:'헤이즐넛우유', engName:'HAZELNUT MILK', enabled:true}] },
+                { name: '에이드', items: [{name:'오렌지 에이드', engName:'ORANGE ADE', enabled:true}, {name:'자몽 에이드', engName:'GRAPEFRUIT ADE', enabled:true}, {name:'레몬 에이드', engName:'LEMON ADE', enabled:true}] },
+                { name: '티', items: [{name:'아이스티', engName:'ICED TEA', enabled:true}, {name:'자몽차', engName:'GRAPEFRUIT TEA', enabled:true}, {name:'유자차', engName:'CITRON TEA', enabled:true}, {name:'캐모마일', engName:'CHAMOMILE', enabled:true}, {name:'페퍼민트', engName:'PEPPERMINT', enabled:true}] },
+                { name: '블랜디드티', items: [{name:'얼그레이', engName:'EARL GREY', enabled:true}, {name:'레몬라임', engName:'LEMON LIME', enabled:true}, {name:'살구썬라이즈', engName:'APRICOT SUNRISE', enabled:true}, {name:'히비스커스', engName:'HIBISCUS', enabled:true}] }
+            ]
+        };
+
+        const clampSize = (val) => {
+            const num = Number(val);
+            if (isNaN(num)) return INITIAL_DATA.stickerSize;
+            return Math.round(Math.min(MAX_STICKER_SIZE, Math.max(MIN_STICKER_SIZE, num)));
+        };
+
+        const clampPercent = (val, max = 92) => {
+            const num = Number(val);
+            if (isNaN(num)) return 0;
+            return Math.min(max, Math.max(0, num));
+        };
+
+        const normalizeConfig = (raw) => {
+            const merged = raw ? { ...INITIAL_DATA, ...raw } : JSON.parse(JSON.stringify(INITIAL_DATA));
+            let pos = merged.stickerPos || { ...INITIAL_DATA.stickerPos };
+            if (pos.unit !== '%') {
+                pos = {
+                    top: clampPercent((Number(pos.top) / Math.max(window.innerHeight, 600)) * 100, 85),
+                    left: clampPercent(pos.left > 800 ? 66 : (Number(pos.left) / Math.max(window.innerWidth, 800)) * 100, 88),
+                    unit: '%'
+                };
+            }
+            merged.stickerPos = pos;
+            merged.stickerSize = clampSize(merged.stickerSize);
+            return merged;
+        };
 
         const { createApp, ref, computed, watch, onMounted } = Vue;
         createApp({
             setup() {
-                // ... (mode, config, syncConfig 상태)
-                const syncStatus = ref({ connected: false });
+                const mode = ref(localStorage.getItem('menu_mode') || 'display');
+                let savedData = null;
+                try {
+                    savedData = JSON.parse(localStorage.getItem('menu_data'));
+                } catch(e) {}
 
-                // --- 핵심 동기화 로직 ---
+                const config = ref(normalizeConfig(savedData));
+                const isManipulating = ref(false);
+                const activeTab = ref(0);
+                const showQuickModal = ref(false);
+                const syncStatus = ref({ connected: false });
+                const syncConfig = ref(JSON.parse(localStorage.getItem('menu_sync_config') || '{"dbUrl":"", "roomId":"default"}'));
+
+                const syncBodyScroll = (m) => {
+                    document.body.classList.toggle('admin-body', m === 'admin');
+                };
+                syncBodyScroll(mode.value);
+                watch(mode, syncBodyScroll);
+
+                const stickerStyle = computed(() => {
+                    const size = clampSize(config.value.stickerSize);
+                    const top = clampPercent(config.value.stickerPos?.top ?? 4, 88);
+                    const left = clampPercent(config.value.stickerPos?.left ?? 66, 90);
+                    return {
+                        top: top + '%',
+                        left: left + '%',
+                        width: size + 'px',
+                        height: size + 'px'
+                    };
+                });
+
+                const setMode = (m) => {
+                    mode.value = m;
+                    localStorage.setItem('menu_mode', m);
+                };
+
+                const openQuickModal = () => { showQuickModal.value = true; };
+                const closeQuickModal = () => {
+                    showQuickModal.value = false;
+                    saveDataOnly();
+                };
+
+                const saveDataOnly = () => {
+                    config.value.stickerSize = clampSize(config.value.stickerSize);
+                    const plain = JSON.parse(JSON.stringify(config.value));
+                    try {
+                        localStorage.setItem('menu_data', JSON.stringify(plain));
+                    } catch (err) {
+                        alert('이미지 용량이 커서 저장에 실패했습니다. 용량이 작은 이미지(JPG/PNG)를 이용해주세요.');
+                        return false;
+                    }
+                    if (syncConfig.value.dbUrl) {
+                        fetch(`${syncConfig.value.dbUrl}/menus/${syncConfig.value.roomId}.json`, {
+                            method: 'PUT',
+                            body: JSON.stringify(plain)
+                        });
+                    }
+                    return true;
+                };
+
+                const copyShareLink = () => {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('db', syncConfig.value.dbUrl);
+                    url.searchParams.set('room', syncConfig.value.roomId);
+                    navigator.clipboard.writeText(url.toString()).then(() => alert('공유 링크가 복사되었습니다!'));
+                };
+
                 const initSync = () => {
                     if (!syncConfig.value.dbUrl) return;
-                    // EventSource로 실시간 데이터 구독
                     const url = `${syncConfig.value.dbUrl}/menus/${syncConfig.value.roomId}.json`;
                     const eventSource = new EventSource(url);
                     eventSource.onmessage = (e) => {
                         const data = JSON.parse(e.data);
-                        if (data && data.data) {
-                            config.value = normalizeConfig(data.data);
+                        if (data) {
+                            config.value = normalizeConfig(data);
                             syncStatus.value.connected = true;
                         }
                     };
                     eventSource.onerror = () => { syncStatus.value.connected = false; };
                 };
 
-                // --- 이미지 압축 로직 ---
-                const compressImage = async (file, maxWidth) => {
-                    return new Promise((resolve) => {
-                        const reader = new FileReader();
-                        reader.readAsDataURL(file);
-                        reader.onload = (event) => {
-                            const img = new Image();
-                            img.src = event.target.result;
-                            img.onload = () => {
-                                const canvas = document.createElement('canvas');
-                                let width = img.width;
-                                let height = img.height;
-                                if (width > maxWidth) {
-                                    height *= maxWidth / width;
-                                    width = maxWidth;
-                                }
-                                canvas.width = width;
-                                canvas.height = height;
-                                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-                                resolve(canvas.toDataURL('image/jpeg', 0.8));
-                            };
-                        };
-                    });
+                onMounted(() => {
+                    const params = new URLSearchParams(window.location.search);
+                    if (params.has('db')) {
+                        syncConfig.value.dbUrl = params.get('db');
+                        syncConfig.value.roomId = params.get('room') || 'default';
+                        localStorage.setItem('menu_sync_config', JSON.stringify(syncConfig.value));
+                    }
+                    initSync();
+                });
+
+                return {
+                    MIN_STICKER_SIZE, MAX_STICKER_SIZE, mode, config, isManipulating, activeTab, showQuickModal,
+                    stickerStyle, setMode, openQuickModal, closeQuickModal, saveDataOnly, copyShareLink,
+                    syncConfig, syncStatus
                 };
-
-                // ... (saveDataOnly 수정: fetch PUT 호출 추가)
-
-                return { /* ... */ syncStatus };
             }
         }).mount('#app');
     </script>
