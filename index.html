@@ -419,11 +419,12 @@
         .hint { font-size: 12px; color: var(--text-sub); margin-top: 4px; }
     </style>
 </head>
-<body :class="{ 'admin-body': mode === 'admin' || mode === 'simple-admin' }">
+<body :class="{ 'admin-body': mode === 'admin' || mode === 'simple-admin' }"
+      :style="mode === 'display' && config.bgImage ? { 'background-image': 'url(' + config.bgImage + ')', 'background-size': 'cover', 'background-position': 'center', 'background-repeat': 'no-repeat' } : {}">
     <div id="app" v-cloak>
         <!-- ================= 디스플레이 모드 ================= -->
         <div v-if="mode === 'display'" class="page">
-            <img v-if="config.bgImage" :src="config.bgImage" class="bg-layer" style="z-index: -1;">
+            <!-- 배경 이미지 레이어 제거 (body 스타일로 대체됨) -->
 
             <!-- 동기화 상태 (DB URL이 설정되어 있을 때만 표시) -->
             <div v-if="syncConfig.dbUrl" class="sync-badge" :class="syncStatus.connected ? 'sync-on' : 'sync-off'">
