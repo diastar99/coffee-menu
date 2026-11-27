@@ -451,9 +451,9 @@
                 </div>
             </div>
 
-            <div class="control-hotspots">
-                <button class="hotspot-btn" @click="openQuickModal">📋 빠른 편집</button>
-                <button class="hotspot-btn" @click="setMode('admin')">⚙️ 관리 설정</button>
+            <div class="control-hotspots" style="background: rgba(255,255,255,0.8); padding: 10px; border-radius: 10px; bottom: 20px; right: 20px;">
+                <button class="btn btn-outline" @click="console.log('Click: 빠른 편집'); openQuickModal()">📋 빠른 편집</button>
+                <button class="btn btn-outline" @click="console.log('Click: 관리 설정'); setMode('admin')">⚙️ 관리 설정</button>
             </div>
         </div>
 
@@ -917,34 +917,44 @@
                 };
 
                 const initSync = () => {
-                    if (!syncConfig.value.dbUrl) return;
+                    if (!syncConfig.value.dbUrl) {
+                        console.log("initSync: No dbUrl configured");
+                        return;
+                    }
                     const url = `${syncConfig.value.dbUrl}/menus/${syncConfig.value.roomId}.json`;
+                    console.log("initSync started with URL:", url);
 
-                    // 1. SSE 방식 시도
-                    const eventSource = new EventSource(url);
-                    eventSource.onmessage = (e) => {
-                        if (!e.data || e.data === 'null') return;
-                        const data = JSON.parse(e.data);
-                        const payload = data.data !== undefined ? data.data : data;
-                        if (payload) {
-                            config.value = normalizeConfig(payload);
-                            syncStatus.value.connected = true;
-                        }
-                    };
+                    // 1. 초기 데이터 한 번 가져오기
+                    fetch(url)
+                        .then(res => res.json())
+                        .then(data => {
+                            console.log("Initial fetch result from DB:", data);
+                            if (data) {
+                                config.value = normalizeConfig(data);
+                                syncStatus.value.connected = true;
+                            }
+                        })
+                        .catch(err => console.error("Initial fetch error:", err));
 
-                    // 2. 백업 폴링 (5초마다 확인)
+                    // 2. 주기적 폴링 (2초마다 동기화 확인)
                     setInterval(async () => {
                         try {
                             const res = await fetch(url);
                             const data = await res.json();
-                            if (data && JSON.stringify(data) !== JSON.stringify(config.value)) {
-                                config.value = normalizeConfig(data);
+                            if (data) {
+                                const currentStr = JSON.stringify(config.value);
+                                const newStr = JSON.stringify(normalizeConfig(data));
+                                if (currentStr !== newStr) {
+                                    console.log("Sync detected remote update, updating view...");
+                                    config.value = normalizeConfig(data);
+                                }
                                 syncStatus.value.connected = true;
                             }
                         } catch (e) {
+                            console.error("Polling sync error:", e);
                             syncStatus.value.connected = false;
                         }
-                    }, 5000);
+                    }, 2000);
                 };
 
                 onMounted(() => {
