@@ -40,9 +40,10 @@
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 0;
+            z-index: -1;
             object-fit: cover;
             background-color: #f8f5f0;
+            pointer-events: none;
         }
 
         /* 디스플레이 화면 레이아웃 */
@@ -137,22 +138,26 @@
             right: 15px;
             display: flex;
             gap: 10px;
-            z-index: 100;
+            z-index: 9999 !important;
+            pointer-events: auto;
         }
         .hotspot-btn {
-            background: transparent;
-            color: transparent;
-            border: none;
+            background: rgba(255, 255, 255, 0.05); /* 버튼이 확실히 보이게 잠시 배경색 부여 */
+            color: rgba(255, 255, 255, 0.5); /* 텍스트도 잠시 보이게 */
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
             padding: 20px;
-            width: 80px;
-            height: 80px;
+            width: auto;
+            height: auto;
             cursor: pointer;
-            z-index: 100;
+            z-index: 10000 !important;
             transition: all 0.2s;
             display: flex;
             align-items: center;
             justify-content: center;
             outline: none;
+            pointer-events: auto !important;
+            touch-action: manipulation;
             -webkit-tap-highlight-color: transparent;
         }
         .hotspot-btn:hover {
@@ -913,16 +918,33 @@
 
                 const initSync = () => {
                     if (!syncConfig.value.dbUrl) return;
+                    // Firebase REST streaming needs Accept: text/event-stream
                     const url = `${syncConfig.value.dbUrl}/menus/${syncConfig.value.roomId}.json`;
-                    const eventSource = new EventSource(url);
-                    eventSource.onmessage = (e) => {
-                        const data = JSON.parse(e.data);
-                        if (data) {
-                            config.value = normalizeConfig(data);
+                    console.log("Connecting to SSE EventSource:", url);
+                    try {
+                        const eventSource = new EventSource(url);
+                        eventSource.onopen = () => {
+                            console.log("Firebase SSE Connected successfully!");
                             syncStatus.value.connected = true;
-                        }
-                    };
-                    eventSource.onerror = () => { syncStatus.value.connected = false; };
+                        };
+                        eventSource.onmessage = (e) => {
+                            console.log("SSE message received:", e.data);
+                            if (!e.data || e.data === 'null') return;
+                            const data = JSON.parse(e.data);
+                            // Firebase SSE sends { "path": "/", "data": ... } or direct data depending on format
+                            const payload = data.data !== undefined ? data.data : data;
+                            if (payload) {
+                                config.value = normalizeConfig(payload);
+                                syncStatus.value.connected = true;
+                            }
+                        };
+                        eventSource.onerror = (err) => {
+                            console.error("SSE connection error:", err);
+                            syncStatus.value.connected = false;
+                        };
+                    } catch (ex) {
+                        console.error("Failed to create EventSource:", ex);
+                    }
                 };
 
                 onMounted(() => {
