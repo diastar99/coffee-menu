@@ -418,7 +418,7 @@
     <div id="app" v-cloak>
         <!-- ================= 디스플레이 모드 ================= -->
         <div v-if="mode === 'display'" class="page">
-            <img v-if="config.bgImage" :src="config.bgImage" class="bg-layer">
+            <img v-if="config.bgImage" :src="config.bgImage" class="bg-layer" style="z-index: -1;">
 
             <!-- 동기화 상태 (DB URL이 설정되어 있을 때만 표시) -->
             <div v-if="syncConfig.dbUrl" class="sync-badge" :class="syncStatus.connected ? 'sync-on' : 'sync-off'">
@@ -927,6 +927,7 @@
 
                 onMounted(() => {
                     console.log("App Mounted - Checking Config:", config.value);
+                    console.log("BgImage exists?", !!config.value.bgImage, "Length:", config.value.bgImage ? config.value.bgImage.length : 0);
 
                     const params = new URLSearchParams(window.location.search);
                     if (params.has('db')) {
