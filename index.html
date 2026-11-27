@@ -172,6 +172,11 @@
             box-shadow: 0 10px 30px rgba(74, 55, 40, 0.08);
             padding: 32px;
         }
+        .dashboard-container.simple-admin-mode {
+            max-width: 500px; /* Smaller max-width for phone-like experience */
+            padding: 20px; /* Reduced padding */
+            margin-top: 20px; /* Adjust margin for mobile view */
+        }
         .dash-header {
             display: flex;
             justify-content: space-between;
@@ -397,7 +402,7 @@
         .hint { font-size: 12px; color: var(--text-sub); margin-top: 4px; }
     </style>
 </head>
-<body :class="{ 'admin-body': mode === 'admin' }">
+<body :class="{ 'admin-body': mode === 'admin' || mode === 'simple-admin' }">
     <div id="app" v-cloak>
         <!-- ================= 디스플레이 모드 ================= -->
         <div v-if="mode === 'display'" class="page" :style="{ backgroundImage: config.bgImage ? 'url(' + config.bgImage + ')' : 'none' }">
@@ -439,7 +444,7 @@
             <div class="dash-header">
                 <h2>☕ 메뉴판 관리</h2>
                 <div class="dash-actions">
-                    <button class="btn btn-accent" @click="save">저장</button>
+                    <button class="btn btn-accent" @click="saveDataOnly(true)">저장</button>
                     <button class="btn btn-outline" @click="setMode('display')">닫기</button>
                 </div>
             </div>
@@ -524,6 +529,38 @@
             </div>
         </div>
 
+        <!-- ================= 폰 전용 간편 관리 화면 ================= -->
+        <div v-if="mode === 'simple-admin'" class="dashboard-container simple-admin-mode">
+            <div class="dash-header">
+                <h2>📱 간편 메뉴 관리</h2>
+                <div class="dash-actions">
+                    <button class="btn btn-accent" @click="saveDataOnly(true)">저장</button>
+                    <button class="btn btn-outline" @click="setMode('display')">닫기</button>
+                </div>
+            </div>
+
+            <div class="card-section">
+                <h3>메뉴 관리</h3>
+                <div class="category-tabs">
+                    <button v-for="(cat, idx) in config.categories" :key="idx"
+                            class="tab-btn" :class="{ active: activeTab === idx }" @click="activeTab = idx">
+                        {{ cat.name }}
+                    </button>
+                </div>
+                <div class="menu-list-container">
+                    <div v-for="(item, iIdx) in config.categories[activeTab]?.items" :key="iIdx" class="menu-edit-row">
+                        <input type="checkbox" v-model="item.enabled">
+                        <input type="text" v-model="item.name" placeholder="한글명">
+                        <input type="text" v-model="item.engName" placeholder="영문명">
+                        <button class="btn btn-sm btn-outline btn-danger" @click="removeItem(activeTab, iIdx)">×</button>
+                    </div>
+                </div>
+                <div style="margin-top: 15px; text-align: center;">
+                    <button class="btn btn-sm btn-outline" @click="addItem(activeTab)">+ 메뉴 추가</button>
+                </div>
+            </div>
+        </div>
+
         <!-- ================= 빠른 메뉴 편집 모달 ================= -->
         <div v-if="showQuickModal" class="modal-overlay">
             <div class="modal-card">
@@ -551,8 +588,9 @@
                         <button class="btn btn-sm btn-outline" @click="addItem(activeTab)">+ 메뉴 추가</button>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button class="btn btn-accent" @click="closeQuickModal">확인</button>
+                <div class="modal-footer" style="justify-content: space-between;">
+                    <button class="btn btn-sm btn-outline" @click="setMode('simple-admin'); closeQuickModal();">📱 간편 관리 화면</button>
+                    <button class="btn btn-accent" @click="closeQuickModal">확인 (저장)</button>
                 </div>
             </div>
         </div>
@@ -669,17 +707,22 @@
                 const syncConfig = ref(JSON.parse(localStorage.getItem('menu_sync_config') || '{"dbUrl":"", "roomId":"default"}'));
 
                 const syncBodyScroll = (m) => {
-                    document.body.classList.toggle('admin-body', m === 'admin');
+                    document.body.classList.toggle('admin-body', m === 'admin' || m === 'simple-admin');
                 };
                 syncBodyScroll(mode.value);
                 watch(mode, syncBodyScroll);
+
+                // Watch syncConfig for changes and save to localStorage immediately
+                watch(syncConfig, (newVal) => {
+                    localStorage.setItem('menu_sync_config', JSON.stringify(newVal));
+                }, { deep: true });
 
                 const stickerStyle = computed(() => {
                     const size = clampSize(config.value.stickerSize);
                     const top = clampPercent(config.value.stickerPos?.top ?? 4, 88);
                     const left = clampPercent(config.value.stickerPos?.left ?? 66, 90);
                     return {
-                        top: top + '% എത്ത',
+                        top: top + '%',
                         left: left + '%',
                         width: size + 'px',
                         height: size + 'px'
@@ -781,7 +824,7 @@
                     saveDataOnly();
                 };
 
-                const saveDataOnly = () => {
+                const saveDataOnly = (showAlert = false) => {
                     config.value.stickerSize = clampSize(config.value.stickerSize);
                     const plain = JSON.parse(JSON.stringify(config.value));
                     try {
@@ -794,7 +837,13 @@
                         fetch(`${syncConfig.value.dbUrl}/menus/${syncConfig.value.roomId}.json`, {
                             method: 'PUT',
                             body: JSON.stringify(plain)
+                        }).then(() => {
+                            if (showAlert) alert('클라우드 및 로컬에 저장되었습니다!');
+                        }).catch(() => {
+                            if (showAlert) alert('로컬에만 저장되었습니다 (클라우드 오류).');
                         });
+                    } else if (showAlert) {
+                        alert('로컬에 저장되었습니다!');
                     }
                     return true;
                 };
