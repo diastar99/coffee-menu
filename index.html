@@ -128,25 +128,23 @@
             z-index: 100;
         }
         .hotspot-btn {
-            background: rgba(74, 55, 40, 0.85);
-            color: white;
+            background: transparent;
+            color: transparent;
             border: none;
-            padding: 10px 16px;
-            border-radius: 30px;
+            padding: 20px;
+            width: 80px;
+            height: 80px;
             cursor: pointer;
-            font-size: 13px;
-            font-weight: 600;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-            backdrop-filter: blur(4px);
+            z-index: 100;
             transition: all 0.2s;
             display: flex;
             align-items: center;
-            gap: 6px;
+            justify-content: center;
+            outline: none;
+            -webkit-tap-highlight-color: transparent;
         }
         .hotspot-btn:hover {
-            background: var(--primary);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+            background: rgba(255,255,255,0.05);
         }
 
         /* 동기화 상태 배지 */
@@ -462,6 +460,46 @@
                 </div>
             </div>
 
+            <!-- 이미지 설정 -->
+            <div class="card-section">
+                <h3>이미지 설정</h3>
+                <div class="form-row">
+                    <label>배경 이미지</label>
+                    <div class="file-upload-box">
+                        <label class="file-label">
+                            파일 선택
+                            <input type="file" accept="image/*" @change="handleFileChange($event, 'bgImage')">
+                        </label>
+                        <button v-if="config.bgImage" class="btn btn-sm btn-outline btn-danger" @click="clearImage('bgImage')">삭제</button>
+                    </div>
+                </div>
+                <div v-if="config.bgImage" class="form-row" style="margin-top: -8px; margin-bottom: 20px;">
+                    <label></label> <!-- Label placeholder for alignment -->
+                    <img :src="config.bgImage" style="max-width: 100%; height: 100px; object-fit: contain; border-radius: 8px; border: 1px solid var(--border-color);">
+                </div>
+
+                <div class="form-row">
+                    <label>스티커 이미지</label>
+                    <div class="file-upload-box">
+                        <label class="file-label">
+                            파일 선택
+                            <input type="file" accept="image/*" @change="handleFileChange($event, 'stickerImage')">
+                        </label>
+                        <button v-if="config.stickerImage" class="btn btn-sm btn-outline btn-danger" @click="clearImage('stickerImage')">삭제</button>
+                    </div>
+                </div>
+                <div v-if="config.stickerImage" class="form-row" style="margin-top: -8px; margin-bottom: 20px;">
+                    <label></label> <!-- Label placeholder for alignment -->
+                    <img :src="config.stickerImage" style="max-width: 100%; height: 100px; object-fit: contain; border-radius: 8px; border: 1px solid var(--border-color);">
+                </div>
+
+                <div class="form-row">
+                    <label>스티커 크기</label>
+                    <input type="range" v-model.number="config.stickerSize" :min="MIN_STICKER_SIZE" :max="MAX_STICKER_SIZE" class="form-input" style="flex: 1;">
+                    <span style="width: 50px; text-align: right; font-weight: 600;">{{ config.stickerSize }}px</span>
+                </div>
+            </div>
+
             <!-- 메뉴 관리 UI (기존 유지) -->
             <div class="card-section">
                 <h3>메뉴 관리</h3>
@@ -556,6 +594,49 @@
             return merged;
         };
 
+        const compressImage = (dataURL, maxWidth, maxHeight, quality = 0.7) => {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.src = dataURL;
+                img.onload = () => {
+                    const offscreenCanvas = document.createElement('canvas'); // Use regular canvas if OffscreenCanvas not supported
+                    const ctx = offscreenCanvas.getContext('2d');
+
+                    let width = img.width;
+                    let height = img.height;
+
+                    // Calculate new dimensions to fit within maxWidth/maxHeight while maintaining aspect ratio
+                    if (width > maxWidth || height > maxHeight) {
+                        const aspectRatio = width / height;
+                        if (width > height) { // Landscape
+                            width = maxWidth;
+                            height = width / aspectRatio;
+                        } else { // Portrait or square
+                            height = maxHeight;
+                            width = height * aspectRatio;
+                        }
+                    }
+
+                    offscreenCanvas.width = width;
+                    offscreenCanvas.height = height;
+
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    offscreenCanvas.toBlob(blob => {
+                        if (!blob) {
+                            reject(new Error('Canvas toBlob failed.'));
+                            return;
+                        }
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    }, 'image/jpeg', quality); // Convert to JPEG for better compression
+                };
+                img.onerror = (error) => reject(error);
+            });
+        };
+
         const { createApp, ref, computed, watch, onMounted } = Vue;
         createApp({
             setup() {
@@ -626,6 +707,39 @@
                     navigator.clipboard.writeText(url.toString()).then(() => alert('공유 링크가 복사되었습니다!'));
                 };
 
+                const handleFileChange = async (e, type) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+
+                    const reader = new FileReader();
+                    reader.onload = async (event) => {
+                        let dataURL = event.target.result;
+                        // Compress image to prevent localStorage/Network quota issues
+                        // background: 1920x1080 (max 300KB suggested), sticker: 800x800 (max 100KB suggested)
+                        const maxWidth = type === 'bgImage' ? 1920 : 800;
+                        const maxHeight = type === 'bgImage' ? 1080 : 800;
+                        const quality = 0.6; // Higher compression
+
+                        try {
+                            const compressed = await compressImage(dataURL, maxWidth, maxHeight, quality);
+                            config.value[type] = compressed;
+                            saveDataOnly();
+                        } catch (err) {
+                            console.error('Compression failed', err);
+                            config.value[type] = dataURL; // Fallback
+                            saveDataOnly();
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                };
+
+                const clearImage = (type) => {
+                    if (confirm('정말로 이미지를 삭제하시겠습니까?')) {
+                        config.value[type] = '';
+                        saveDataOnly();
+                    }
+                };
+
                 const initSync = () => {
                     if (!syncConfig.value.dbUrl) return;
                     const url = `${syncConfig.value.dbUrl}/menus/${syncConfig.value.roomId}.json`;
@@ -653,7 +767,7 @@
                 return {
                     MIN_STICKER_SIZE, MAX_STICKER_SIZE, mode, config, isManipulating, activeTab, showQuickModal,
                     stickerStyle, setMode, openQuickModal, closeQuickModal, saveDataOnly, copyShareLink,
-                    syncConfig, syncStatus
+                    syncConfig, syncStatus, handleFileChange, clearImage
                 };
             }
         }).mount('#app');
