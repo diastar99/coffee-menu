@@ -945,20 +945,20 @@
                         .then(res => res.json())
                         .then(data => {
                             console.log("Initial fetch result from DB:", data);
-                            if (data && !isSaving.value) {
+                            if (data && Object.keys(data).length > 0 && !isSaving.value) { // null 체크 추가
                                 config.value = normalizeConfig(data);
                                 syncStatus.value.connected = true;
                             }
                         })
                         .catch(err => console.error("Initial fetch error:", err));
 
-                    // 2. 주기적 폴링 (4초마다 동기화 확인 - 부하 감소)
+                    // 2. 주기적 폴링 (4초마다 동기화 확인)
                     setInterval(async () => {
                         if (isSaving.value) return; // 저장 중에는 동기화 무시
                         try {
                             const res = await fetch(url);
                             const data = await res.json();
-                            if (data && !isSaving.value) {
+                            if (data && Object.keys(data).length > 0 && !isSaving.value) { // null 체크 추가
                                 const currentStr = JSON.stringify(config.value);
                                 const newStr = JSON.stringify(normalizeConfig(data));
                                 if (currentStr !== newStr) {
