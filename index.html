@@ -26,14 +26,15 @@
             -webkit-font-smoothing: antialiased;
         }
         .bg-image-display {
-            position: fixed;
+            position: absolute;
             top: 0;
             left: 0;
-            width: 100vw;
-            height: 100vh;
-            object-fit: contain; /* 이미지가 잘리지 않도록 contain으로 변경 */
-            background-color: var(--bg-color); /* 이미지가 없는 경우 기본 배경색 */
-            z-index: 0; /* 다른 요소보다 뒤에 배치 */
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background-color: var(--bg-color);
+            z-index: 0;
+            pointer-events: none;
         }
         body.admin-body {
             overflow: auto;
@@ -428,7 +429,7 @@
 <body :class="{ 'admin-body': mode === 'admin' || mode === 'simple-admin' }">
     <div id="app" v-cloak>
         <!-- 배경 이미지 전용 태그 (안정적인 렌더링을 위해 img 태그 사용) -->
-        <img v-if="mode === 'display' && config.bgImage" :src="config.bgImage" class="bg-image-display" alt="배경 이미지">
+        <img v-if="config.bgImage" :src="config.bgImage" class="bg-image-display" alt="배경 이미지">
 
         <!-- ================= 디스플레이 모드 ================= -->
         <div v-if="mode === 'display'" class="page">
@@ -727,6 +728,7 @@
 
                 const config = ref(normalizeConfig(savedData));
                 const isManipulating = ref(false);
+                const isSaving = ref(false); // 저장 중임을 나타내는 플래그 (동기화 덮어쓰기 방지)
                 const activeTab = ref(0);
                 const showQuickModal = ref(false);
                 const syncStatus = ref({ connected: false });
@@ -860,12 +862,17 @@
                         return false;
                     }
                     if (syncConfig.value.dbUrl) {
-                        fetch(`${syncConfig.value.dbUrl}/menus/${syncConfig.value.roomId}.json`, {
+                        isSaving.value = true;
+                        const cleanDbUrl = syncConfig.value.dbUrl.replace(/\/+$/, '');
+                        const url = `${cleanDbUrl}/menus/${syncConfig.value.roomId}.json`;
+                        fetch(url, {
                             method: 'PUT',
                             body: JSON.stringify(plain)
                         }).then(() => {
+                            isSaving.value = false;
                             if (showAlert) alert('클라우드 및 로컬에 저장되었습니다!');
                         }).catch(() => {
+                            isSaving.value = false;
                             if (showAlert) alert('로컬에만 저장되었습니다 (클라우드 오류).');
                         });
                     } else if (showAlert) {
@@ -889,10 +896,10 @@
                     reader.onload = async (event) => {
                         let dataURL = event.target.result;
                         // Compress image to prevent localStorage/Network quota issues
-                        // background: 1280x720 (max 300KB suggested), sticker: 800x800 (max 100KB suggested)
-                        const maxWidth = type === 'bgImage' ? 1280 : 800;
-                        const maxHeight = type === 'bgImage' ? 720 : 800;
-                        const quality = type === 'bgImage' ? 0.3 : 0.6; // 배경 이미지는 대폭 압축 (렌더링 안정성)
+                        // background: 1024x576 (Extreme compression for DeX), sticker: 800x800
+                        const maxWidth = type === 'bgImage' ? 1024 : 800;
+                        const maxHeight = type === 'bgImage' ? 576 : 800;
+                        const quality = type === 'bgImage' ? 0.2 : 0.6; // 배경 이미지는 극단적으로 압축하여 메모리 부하 감소
 
                         try {
                             const compressed = await compressImage(dataURL, maxWidth, maxHeight, quality, file.type);
@@ -929,7 +936,8 @@
                         console.log("initSync: No dbUrl configured");
                         return;
                     }
-                    const url = `${syncConfig.value.dbUrl}/menus/${syncConfig.value.roomId}.json`;
+                    const cleanDbUrl = syncConfig.value.dbUrl.replace(/\/+$/, '');
+                    const url = `${cleanDbUrl}/menus/${syncConfig.value.roomId}.json`;
                     console.log("initSync started with URL:", url);
 
                     // 1. 초기 데이터 한 번 가져오기
@@ -937,19 +945,20 @@
                         .then(res => res.json())
                         .then(data => {
                             console.log("Initial fetch result from DB:", data);
-                            if (data) {
+                            if (data && !isSaving.value) {
                                 config.value = normalizeConfig(data);
                                 syncStatus.value.connected = true;
                             }
                         })
                         .catch(err => console.error("Initial fetch error:", err));
 
-                    // 2. 주기적 폴링 (2초마다 동기화 확인)
+                    // 2. 주기적 폴링 (4초마다 동기화 확인 - 부하 감소)
                     setInterval(async () => {
+                        if (isSaving.value) return; // 저장 중에는 동기화 무시
                         try {
                             const res = await fetch(url);
                             const data = await res.json();
-                            if (data) {
+                            if (data && !isSaving.value) {
                                 const currentStr = JSON.stringify(config.value);
                                 const newStr = JSON.stringify(normalizeConfig(data));
                                 if (currentStr !== newStr) {
@@ -962,7 +971,7 @@
                             console.error("Polling sync error:", e);
                             syncStatus.value.connected = false;
                         }
-                    }, 2000);
+                    }, 4000);
                 };
 
                 onMounted(() => {
