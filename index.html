@@ -134,34 +134,30 @@
         /* 하단 우측 컨트롤 핫스팟 영역 */
         .control-hotspots {
             position: absolute;
-            bottom: 15px;
-            right: 15px;
+            bottom: 20px;
+            right: 20px;
+            z-index: 10000;
             display: flex;
             gap: 10px;
-            z-index: 9999 !important;
-            pointer-events: auto;
+            pointer-events: none;
         }
         .hotspot-btn {
-            background: rgba(255, 255, 255, 0.05); /* 버튼이 확실히 보이게 잠시 배경색 부여 */
-            color: rgba(255, 255, 255, 0.5); /* 텍스트도 잠시 보이게 */
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
-            padding: 20px;
-            width: auto;
-            height: auto;
+            background: transparent;
+            border: none;
+            width: 60px;
+            height: 60px;
             cursor: pointer;
-            z-index: 10000 !important;
-            transition: all 0.2s;
+            pointer-events: auto;
+            opacity: 0;
+            transition: opacity 0.2s;
             display: flex;
             align-items: center;
             justify-content: center;
             outline: none;
-            pointer-events: auto !important;
-            touch-action: manipulation;
             -webkit-tap-highlight-color: transparent;
         }
         .hotspot-btn:hover {
-            background: rgba(255,255,255,0.05);
+            opacity: 0.1;
         }
 
         /* 동기화 상태 배지 */
@@ -452,9 +448,9 @@
                 </div>
             </div>
 
-            <div class="control-hotspots" style="background: rgba(255,255,255,0.8); padding: 10px; border-radius: 10px; bottom: 20px; right: 20px;">
-                <button class="btn btn-outline" @click="console.log('Click: 빠른 편집'); openQuickModal()">📋 빠른 편집</button>
-                <button class="btn btn-outline" @click="console.log('Click: 관리 설정'); setMode('admin')">⚙️ 관리 설정</button>
+            <div class="control-hotspots">
+                <button class="hotspot-btn" @click="openQuickModal" title="빠른 편집">📋</button>
+                <button class="hotspot-btn" @click="setMode('admin')" title="관리 설정">⚙️</button>
             </div>
         </div>
 
@@ -489,8 +485,8 @@
                 <h3>이미지 설정</h3>
                 <div class="form-row">
                     <label>배경 이미지</label>
-                    <div class="file-upload-box">
-                        <label class="file-label">
+                    <div class="file-upload-box" style="border: 2px dashed var(--border-color); padding: 10px; border-radius: 8px;">
+                        <label class="file-label" style="background: var(--primary); color: white;">
                             파일 선택
                             <input type="file" accept="image/*" @change="handleFileChange($event, 'bgImage')">
                         </label>
@@ -504,8 +500,8 @@
 
                 <div class="form-row">
                     <label>스티커 이미지</label>
-                    <div class="file-upload-box">
-                        <label class="file-label">
+                    <div class="file-upload-box" style="border: 2px dashed var(--border-color); padding: 10px; border-radius: 8px;">
+                        <label class="file-label" style="background: var(--primary); color: white;">
                             파일 선택
                             <input type="file" accept="image/*" @change="handleFileChange($event, 'stickerImage')">
                         </label>
