@@ -20,10 +20,20 @@
         body {
             margin: 0;
             font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: var(--bg-color);
+            /* background: var(--bg-color); -> 배경 이미지 처리 방식 변경으로 제거 */
             color: var(--text-main);
             overflow: hidden;
             -webkit-font-smoothing: antialiased;
+        }
+        .bg-image-display {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: contain; /* 이미지가 잘리지 않도록 contain으로 변경 */
+            background-color: var(--bg-color); /* 이미지가 없는 경우 기본 배경색 */
+            z-index: 0; /* 다른 요소보다 뒤에 배치 */
         }
         body.admin-body {
             overflow: auto;
@@ -415,12 +425,13 @@
         .hint { font-size: 12px; color: var(--text-sub); margin-top: 4px; }
     </style>
 </head>
-<body :class="{ 'admin-body': mode === 'admin' || mode === 'simple-admin' }"
-      :style="mode === 'display' && config.bgImage ? { 'background-image': 'url(' + config.bgImage + ')', 'background-size': 'contain', 'background-position': 'center', 'background-repeat': 'no-repeat' } : {}">
+<body :class="{ 'admin-body': mode === 'admin' || mode === 'simple-admin' }">
     <div id="app" v-cloak>
+        <!-- 배경 이미지 전용 태그 (안정적인 렌더링을 위해 img 태그 사용) -->
+        <img v-if="mode === 'display' && config.bgImage" :src="config.bgImage" class="bg-image-display" alt="배경 이미지">
+
         <!-- ================= 디스플레이 모드 ================= -->
         <div v-if="mode === 'display'" class="page">
-            <!-- 배경 이미지 레이어 제거 (body 스타일로 대체됨) -->
 
             <!-- 동기화 상태 (DB URL이 설정되어 있을 때만 표시) -->
             <div v-if="syncConfig.dbUrl" class="sync-badge" :class="syncStatus.connected ? 'sync-on' : 'sync-off'">
@@ -878,10 +889,10 @@
                     reader.onload = async (event) => {
                         let dataURL = event.target.result;
                         // Compress image to prevent localStorage/Network quota issues
-                        // background: 1920x1080 (max 300KB suggested), sticker: 800x800 (max 100KB suggested)
-                        const maxWidth = type === 'bgImage' ? 1920 : 800;
-                        const maxHeight = type === 'bgImage' ? 1080 : 800;
-                        const quality = type === 'bgImage' ? 0.4 : 0.6; // 배경 이미지는 더 강하게 압축
+                        // background: 1280x720 (max 300KB suggested), sticker: 800x800 (max 100KB suggested)
+                        const maxWidth = type === 'bgImage' ? 1280 : 800;
+                        const maxHeight = type === 'bgImage' ? 720 : 800;
+                        const quality = type === 'bgImage' ? 0.3 : 0.6; // 배경 이미지는 대폭 압축 (렌더링 안정성)
 
                         try {
                             const compressed = await compressImage(dataURL, maxWidth, maxHeight, quality, file.type);
